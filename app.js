@@ -1,25 +1,20 @@
-require("dotenv").config();
+
 const express = require("express");
 
 const mongoose = require("mongoose");
 const app = express();
+const bookRoutes = require("./routes/book");
+const userRoutes = require("./routes/user");
 
 
-mongoose
-  .connect(
-    `mongodb+srv://${process.env.USER}:${process.env.PASSWORD}@${process.env.DB_URL}`
-  )
-  .then(() => console.log("Connexion à MongoDB réussie !"))
-  .catch(() => console.log("Connexion à MongoDB échouée !"));
+mongoose.connect(
+  "mongodb+srv://user1:iJIilt5T8gwUQIlv@cluster0.79agfo2.mongodb.net/books?retryWrites=true&w=majority"
+)
+  .then(() => console.log("✅ Connecté à MongoDB !"))
+  .catch(err => console.error("❌ Erreur :", err));
 
 app.use(express.json()); // Middleware permettant d'avoir acces au body de la requete
 
-app.post("/api/books", (req, res, next) => {
-  console.log(req.body);
-  res.status(201).json({
-    message: "Livre créé !",
-  });
-});
 
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -34,10 +29,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// app.get("/api/books", (req, res, next) => {
-//   Book.find()
-//     .then((books) => res.status(200).json(books))
-//     .catch((error) => res.status(400).json({ error }));
-// });
+
+
+app.use("/api/books", bookRoutes);
+app.use("/api/auth", userRoutes);
 
 module.exports = app;
