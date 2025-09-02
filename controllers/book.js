@@ -35,14 +35,21 @@ exports.modifyBook = (req, res, next) => {
     .then((book) => {
       if (book.userId != req.auth.userId) {
         res.status(401).json({ message: "Not authorized" });
-      } else {
-        Book.updateOne(
-          { _id: req.params.id },
-          { ...bookObject, _id: req.params.id }
-        )
-          .then(() => res.status(200).json({ message: "Livre modifié!" }))
-          .catch((error) => res.status(401).json({ error }));
       }
+      if (req.file) {
+        const oldFilename = book.imageUrl.split("/images/")[1];
+        fs.unlink(`images/${oldFilename}`, (err) => {
+          if (err) {
+            console.error("Erreur lors de la suppression de l'image : ", err);
+          }
+        });
+      }
+      Book.updateOne(
+        { _id: req.params.id },
+        { ...bookObject, _id: req.params.id }
+      )
+        .then(() => res.status(200).json({ message: "Livre modifié!" }))
+        .catch((error) => res.status(401).json({ error }));
     })
     .catch((error) => {
       res.status(400).json({ error });
@@ -80,3 +87,50 @@ Book.findOne({ _id: req.params.id })
     });
     };
 
+exports.rateBook = (req, res, next) => {
+  const user = req.body.userId;
+  if (user !== req.auth.userId) {
+    res.status(401).json({ message: "Non autorisé" });
+  } else {
+    Book.findOne({ _id: req.params.id })
+      .then((book) => {
+        if (book.ratings.find((rating) => rating.userId === user)) {
+          res.status(401).json({ message: "Livre déjà noté" });
+        } else {
+          const newRating = {
+            userId: user,
+            grade: req.body.rating,
+            _id: req.body._id,
+          };
+          const updatedRatings = [...book.ratings, newRating];
+          function calcAverageRating(ratings) {
+            const sumRatings = ratings.reduce(
+              (total, rate) => total + rate.grade,
+              0
+            );
+            const average = sumRatings / ratings.length;
+            return parseFloat(average.toFixed(2));
+          }
+          const updateAverageRating = calcAverageRating(updatedRatings);
+          Book.findOneAndUpdate(
+            { _id: req.params.id, "ratings.userId": { $ne: user } },
+            {
+              $push: { ratings: newRating },
+              averageRating: updateAverageRating,
+            },
+            { new: true }
+          )
+            .then((updatedBook) => res.status(201).json(updatedBook))
+            .catch((error) => res.status(401).json({ error }));
+        }
+      })
+      .catch((error) => res.status(401).json({ error }));
+  }
+};
+exports.getBestRating = (req, res, next) => {
+  Book.find()
+    .sort({ averageRating: -1 })
+    .limit(3)
+    .then((books) => res.status(200).json(books))
+    .catch((error) => res.status(401).json({ error }));
+};
